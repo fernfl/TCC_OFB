@@ -1,9 +1,13 @@
 #from optic.models.devices import mzm, pm
 from optic.utils import parameters
 import numpy as np
+import torch.distributions.uniform as urand
+from scipy.optimize import minimize
 
 π = np.pi
 
+class parameters():
+    pass
 
 def pm(Ai, u, Vπ):
     return Ai*np.cos(u/Vπ*np.pi) + 1j*Ai*np.sin(u/Vπ*np.pi)
@@ -172,3 +176,124 @@ def get_indx_peaks(log_Pxx, SpRs, n_peaks):
         indx.append(int(center_indx + i*SpRs))
 
     return indx
+
+def frequencyCombPeaks(params, args):
+    ''' 
+    Function to get the peaks of the power spectrum of the frequency comb signal
+
+    Parameters:
+    params: list
+        Parameters to generate the frequency comb signal
+    args: parameters
+        Parameters object with the arguments to generate the frequency comb signal
+        Should contain the following attributes: Rs, t, P, Vπ, Fa, NFFT, SpS, n_peaks
+
+    Returns:
+    peaks: list
+        Peaks of the power spectrum of the frequency comb signal
+    '''
+
+    frequency_comb = frequencyCombGenerator_MZM_MZM_PM(params, args.Rs, args.t, args.P, args.Vpi) # Generate the frequency comb signal
+    Pxx, _ = get_psd_ByFFT(frequency_comb, args.Fa, args.NFFT) # Get the power spectrum of the frequency comb signal
+    log_Pxx = 10*np.log10(Pxx) # Convert the power spectrum to dB
+    indx = get_indx_peaks(log_Pxx, args.NFFT/args.SpS, args.n_peaks) # Get the indexes of the peaks
+
+    peaks = log_Pxx[indx].tolist() # Get the peaks of the power spectrum
+    return peaks
+
+
+def optimization_flatComb(initial_guess, args, bounds, n_max = 100, method = "SLSQP"):
+    ''' 
+    Function to optimize the parameters of the frequency comb signal
+
+    Parameters:
+    initial_guess: list
+        Initial guess for the parameters of the frequency comb signal
+    args: parameters()
+        Parameters object with the arguments to generate the frequency comb signal
+        Should contain the following attributes: Rs, t, P, Vpi, Fa, NFFT, SpS, n_peaks
+    bounds: list
+        Bounds of the parameters
+    n_max: int
+        Max number of iterations
+    method: string
+        Optimization method
+
+    Returns:
+    optimized_params: list
+        Optimized parameters of the frequency comb signal
+    '''
+
+    def objective_function(params, *args):
+
+        peaks = frequencyCombPeaks(params, *args)
+        var = np.var(peaks)
+        
+        return var**2
+    
+    optimized_params = initial_guess
+    n = 0
+    while n < n_max:
+        initial_guess = optimized_params
+        result = minimize(objective_function, initial_guess, args = args, method=method, bounds = bounds)
+        optimized_params = result.x
+        
+        peaks = frequencyCombPeaks(optimized_params, args)
+        min_max = np.max(peaks) - np.min(peaks)
+
+        if min_max < 1:
+            break
+        n += 1
+
+    return optimized_params, peaks, min_max
+
+
+def create_flatCombs(nsamples, args, bounds, upper_min_max = 5.0):
+    '''
+    Function to create the flatComb datasets
+
+    Parameters:
+    nsamples: int
+        Number of samples to be created
+    bounds: list
+        Bounds of the parameters
+    upper_min_max: float
+        Maximum value of the peaks variance
+
+    Returns:
+    flatComb_inputs0_1dB: list
+        Inputs of the flatComb dataset with peaks variance less than 1 dB
+    flatComb_outputs0_1dB: list
+        Outputs of the flatComb dataset with peaks variance less than 1 dB
+    flatComb_inputs1_ndB: list
+        Inputs of the flatComb dataset with peaks variance between 1 and n dB, where n is the upper_min_max
+    flatComb_outputs1_ndB: list
+        Outputs of the flatComb dataset with peaks variance between 1 and n dB, where n is the upper_min_max
+        
+    '''
+    #inputs = FrequencyCombDataset.make_inputs(FrequencyCombDataset, bounds = bounds, nsamples = 10)
+    inputs = [[urand.Uniform(low, high).sample().item() for low, high in bounds] for _ in range(nsamples)]
+
+    flatComb_inputs0_1dB = []
+    flatComb_outputs0_1dB = []
+
+    flatComb_inputs1_ndB = []
+    flatComb_outputs1_ndB = []
+    for input in inputs:
+        best_params, peaks, min_max = optimization_flatComb(input, args, bounds, n_max = 5)
+        if min_max < 1:
+            flatComb_inputs0_1dB.append(best_params)
+            peaks = peaks - np.mean(peaks)
+            flatComb_outputs0_1dB.append(peaks)
+        elif min_max < upper_min_max:
+            flatComb_inputs1_ndB.append(best_params)
+            peaks = peaks - np.mean(peaks)
+            flatComb_outputs1_ndB.append(peaks)
+
+    flatComb_inputs0_1dB = np.array(flatComb_inputs0_1dB)
+    flatComb_outputs0_1dB = np.array(flatComb_outputs0_1dB)
+
+    flatComb_inputs1_ndB = np.array(flatComb_inputs1_ndB)
+    flatComb_outputs1_ndB = np.array(flatComb_outputs1_ndB)
+
+    return flatComb_inputs0_1dB, flatComb_outputs0_1dB, flatComb_inputs1_ndB, flatComb_outputs1_ndB
