@@ -130,10 +130,11 @@ def get_architecture(loaded_dict_data):
     architecture: list with the architecture of the model
     '''
     architecture = []
-    for key in loaded_dict_data.keys():
+    model_state = loaded_dict_data["model_state_dict"]
+    for key in model_state.keys():
         if "weight" in key:
-            architecture.append(loaded_dict_data[key].shape[1])
-    architecture.append(loaded_dict_data[key].shape[0])
+            architecture.append(model_state[key].shape[1])
+    architecture.append(model_state[key].shape[0])
     return architecture
 
 
