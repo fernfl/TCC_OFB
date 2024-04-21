@@ -135,3 +135,81 @@ def get_architecture(loaded_dict_data):
             architecture.append(loaded_dict_data[key].shape[1])
     architecture.append(loaded_dict_data[key].shape[0])
     return architecture
+
+
+def plot_comparison(target, output, freqs_GHz, loss, figname, title, ylim = (-35,35), xlabel = "Frequency (GHz) - Normalized to symbol rate", ylabel = "Power Spectral Density (dB/Hz)"):
+    with plt.style.context(['science', 'ieee', "grid", 'no-latex']):
+        fig, ax = plt.subplots()
+        ax.plot(freqs_GHz, target, "s", label='Target')
+        ax.plot(freqs_GHz, output, "o", label='Predicted')
+        ax.legend()
+        ax.autoscale(tight=True)
+        ax.set_xlabel(xlabel)
+        ax.set_ylabel(ylabel)
+        ax.set_xticks(freqs_GHz)
+        ax.set_title(title)
+        ax.set_xlim(freqs_GHz[0]-0.5,freqs_GHz[-1]+0.5)
+        ax.set_ylim(ylim)
+        ax.text(0, ylim[0]*0.88, f"AVG Loss: {loss:.3f} (dB/Hz)^2\nMax - Min: {np.max(output) - np.min(output):.3f} dB", ha = 'center', bbox=dict(facecolor='white', alpha=1, edgecolor='silver', boxstyle='round,pad=0.3'))
+        fig.savefig(figname, dpi=300)
+        plt.show()
+        plt.close()
+
+
+def run_one_epoch_forward(mode, loader, model, loss_fn, device="cpu", optimizer=None):
+    if mode == 'train':
+        model.train()
+    elif mode == 'val' or mode == "test":
+        model.eval()
+    else:
+        raise ValueError("Invalide mode. Try to use 'train', 'val' or 'test'.")
+
+    total_loss = 0.0
+    n_loops = 0
+    for inputs, targets in loader:
+        inputs, targets = inputs.to(device), targets.to(device)
+
+        outputs = model(inputs) # Calculate outputs
+        loss = loss_fn(outputs, targets) # Calculate loss
+        total_loss += loss.item()
+
+        if mode == 'train':
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+
+        n_loops += 1
+
+    avg_loss = total_loss / n_loops
+    return avg_loss, outputs, targets
+
+def run_one_epoch_inverse(mode, loader, forward_model, inverse_model, loss_fn, device="cpu", optimizer=None):
+    if mode == 'train':
+        inverse_model.train()
+    elif mode == 'val' or mode == "test":
+        inverse_model.eval()
+    else:
+        raise ValueError("Invalide mode. Try to use 'train', 'val' or 'test'.")
+
+    total_loss = 0.0
+    n_loops = 0
+    for inputs, targets in loader:
+        inputs = inputs.to(device)
+        targets = targets.to(device)
+        
+        inverse_outputs = inverse_model(targets) # Forward pass through the inverse model
+        forward_outputs = forward_model(inverse_outputs) # Forward pass through the forward model
+
+        # Calculate loss
+        loss = loss_fn(forward_outputs, targets)
+        total_loss += loss.item()
+
+        if mode == 'train':
+            optimizer.zero_grad()  # Reset gradients tensors
+            loss.backward()  # Calculate gradients
+            optimizer.step()  # Update weights
+
+        n_loops += 1
+
+    avg_loss = total_loss / n_loops
+    return avg_loss, forward_outputs, inverse_outputs, targets, inputs

@@ -1,3 +1,5 @@
 myenv/
 OptiCommPy/
 Simulation/__pycache__/
+Simulation/saved_data/models/
+Simulation/saved_data/losses/

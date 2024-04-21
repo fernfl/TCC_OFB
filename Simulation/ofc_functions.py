@@ -154,7 +154,7 @@ def get_indx_peaks(log_Pxx, SpRs, n_peaks):
     log_Pxx: numpy array
         Power spectrum of the frequency comb signal
     SpRs: int
-        Samples by each Rs. Each peak is separated by the Rs frequency
+        Samples by each Rs. Each peak is separated by the Rs frequency. SpRs = (NFFT/SpS)
     n_peaks: int
         Number of peaks to be found
 
