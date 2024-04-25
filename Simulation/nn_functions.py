@@ -1,6 +1,11 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
+import torch
+from torch import nn
+from torch.utils.data import Dataset
+import torch.distributions.uniform as urand
+
 def split_train_val_test_data(inputs, outputs, train_ratio = 0.8, val_ratio = 0.1, test_ratio = 0.1, shuffle = False):
 
     '''
@@ -214,3 +219,68 @@ def run_one_epoch_inverse(mode, loader, forward_model, inverse_model, loss_fn, d
 
     avg_loss = total_loss / n_loops
     return avg_loss, forward_outputs, inverse_outputs, targets, inputs
+
+
+
+class FrequencyCombNet(nn.Module):
+    def __init__(self, architecture):
+        self.architecture = architecture
+        super(FrequencyCombNet, self).__init__()
+        layers = [nn.Linear(architecture[0], architecture[1])]
+        for i in range(1, len(architecture) - 1):
+            layers.append(nn.ReLU())
+            layers.append(nn.Linear(architecture[i], architecture[i + 1]))
+        self.layers = nn.Sequential(*layers)
+
+    def forward(self, x):
+        return self.layers(x)
+    
+
+# Define your custom dataset
+class FrequencyCombDataset(Dataset):
+    def __init__(self, function, nsamples, ofc_args, bounds, norm_scale = 1):
+        self.function = function
+        self.nsamples = nsamples
+        self.ofc_args = ofc_args
+        self.bounds = bounds
+        self.norm_scale = norm_scale
+        
+        inputs = self.make_inputs(self.bounds, self.nsamples)
+        self.input_tensors = torch.from_numpy(np.array(inputs)).float()
+
+        outputs = self.make_outputs(inputs, self.function)
+        self.output_tensors = torch.from_numpy(np.array(outputs)).float()
+        if norm_scale == 1:
+            self.norm_scale = torch.ceil(torch.max(torch.abs(self.output_tensors))).item()
+        self.output_tensors = self.normalize(self.output_tensors)
+    
+    def make_inputs(self, bounds, nsamples):
+        inputs = [[urand.Uniform(low, high).sample().item() for low, high in bounds] for _ in range(nsamples)]
+        return inputs
+
+    def make_outputs(self, inputs, function, zero_mean = True):
+        outputs = []
+        for input in inputs:
+            freq_peaks = function(input, self.ofc_args)
+            freq_peaks = freq_peaks - np.mean(freq_peaks)*zero_mean
+            outputs.append(freq_peaks)
+        return outputs
+
+    def __len__(self):
+        return len(self.input_tensors)
+    
+    def data_size(self):
+        inputs_size_in_bytes = self.input_tensors.nelement() * self.input_tensors.element_size()/1024
+        outputs_size_in_bytes = self.output_tensors.nelement() * self.output_tensors.element_size()/1024
+        return inputs_size_in_bytes + outputs_size_in_bytes
+    
+    def normalize(self, tensor):
+        norm_tensor = (tensor + self.norm_scale) / (2* self.norm_scale)
+        return norm_tensor
+    
+    def denormalize(self, tensor):
+        denorm_tensor = tensor * 2* self.norm_scale - self.norm_scale
+        return denorm_tensor
+    
+    def __getitem__(self, idx):
+        return self.input_tensors[idx], self.output_tensors[idx]
