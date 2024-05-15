@@ -48,6 +48,36 @@ def frequencyCombGenerator_MZM_MZM_PM(params, Rs, t, P, Vπ):
 
     return frequency_comb
 
+def frequencyCombGenerator_PM_PM_MZM(params, Rs, t, P, Vπ):
+
+    '''
+    This function generates a frequency comb signal using two MZMs and a PM.
+    
+    Parameters:
+    V1, V2, V3: float
+        Amplitude of the signals (V)
+    Phase1, Phase2, Phase3: float
+        Phase of the signals (rad)
+    Vb1, Vb2: float
+        Bias voltage of the MZMs (V)
+
+    Returns:
+    frequency_comb: array
+        Frequency comb signal
+    '''
+    V1, V2, V3, Phase1, Phase2, Phase3, Vb1 = params
+
+    u1 = V1 * np.cos(2 * π * Rs * t + Phase1)
+    u2 = V2 * np.cos(2 * π * Rs * t + Phase2)
+    u3 = V3 * np.cos(2 * π * Rs * t + Phase3)
+
+    frequency_comb = P
+    frequency_comb =  pm(frequency_comb, u1, Vπ)
+    frequency_comb =  pm(frequency_comb, u2, Vπ)
+    frequency_comb = mzm(frequency_comb, u3, Vπ, Vb1)
+
+    return frequency_comb
+
 def frequencyCombGenerator_MZM_MZM_PM_ocp(params, Rs, t, P, Vπ): # Using opticommpy
     ''' 
     This function generates a frequency comb signal using two MZM and one PM.
@@ -193,7 +223,8 @@ def frequencyCombPeaks(params, args):
         Peaks of the power spectrum of the frequency comb signal
     '''
 
-    frequency_comb = frequencyCombGenerator_MZM_MZM_PM(params, args.Rs, args.t, args.P, args.Vpi) # Generate the frequency comb signal
+    #frequency_comb = frequencyCombGenerator_MZM_MZM_PM(params, args.Rs, args.t, args.P, args.Vpi) # Generate the frequency comb signal
+    frequency_comb = frequencyCombGenerator_PM_PM_MZM(params, args.Rs, args.t, args.P, args.Vpi) # Generate the frequency comb signal
     Pxx, _ = get_psd_ByFFT(frequency_comb, args.Fa, args.NFFT) # Get the power spectrum of the frequency comb signal
     log_Pxx = 10*np.log10(Pxx) # Convert the power spectrum to dB
     indx = get_indx_peaks(log_Pxx, args.NFFT/args.SpS, args.n_peaks) # Get the indexes of the peaks
