@@ -62,7 +62,7 @@ def convert_to_real_loss(loss, norm_scales):
 
     '''
     loss = np.array(loss)
-    loss = loss * (norm_scales[1]-norm_scales[0])
+    loss = loss * (norm_scales[1]-norm_scales[0])**2
     return loss.squeeze()
 
 
@@ -238,22 +238,22 @@ class FrequencyCombNet(nn.Module):
 
 # Define your custom dataset
 class FrequencyCombDataset(Dataset):
-    def __init__(self, function, nsamples, ofc_args, bounds, norm_scales = None):
+    def __init__(self, function, nsamples, ofc_args, bounds, norm_scales = None, zero_mean = True):
         self.function = function
         self.nsamples = nsamples
         self.ofc_args = ofc_args
         self.bounds = bounds
         self.norm_scales = norm_scales
-        
+        self.zero_mean = zero_mean
         inputs = self.make_inputs(self.bounds, self.nsamples)
         self.input_tensors = torch.from_numpy(np.array(inputs)).float()
 
-        outputs = self.make_outputs(inputs, self.function)
+        outputs = self.make_outputs(inputs, self.function, self.zero_mean)
         self.output_tensors = torch.from_numpy(np.array(outputs)).float()
         if norm_scales == None:
+            val_min = torch.ceil(torch.min(self.output_tensors)).item()
             val_max = torch.ceil(torch.max(self.output_tensors)).item()
-            val_max = torch.ceil(torch.min(self.output_tensors)).item()
-            self.norm_scales = [val_max, val_max]
+            self.norm_scales = [val_min, val_max]
         self.output_tensors = self.normalize(self.output_tensors)
     
     def make_inputs(self, bounds, nsamples):
