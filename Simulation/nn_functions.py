@@ -88,6 +88,38 @@ def plot_training_progress(train_losses, val_losses, title = "Training and Valid
     plt.minorticks_on()
     plt.show()
 
+
+def plot_training_progress_style(train_losses, val_losses, title = fr"$MSE\; de\; Treinamento\; e\; Validação$", ylabel = r"$Erro\; (dB/Hz)^2$", average_curves = False, M = 200, figname = "training_progress.png"):
+
+    train_losses = np.array(train_losses)
+    val_losses = np.array(val_losses)
+    with plt.style.context(['science', 'ieee', "grid", 'no-latex']):
+        fig, ax = plt.subplots(figsize=(5*0.8,2.4*0.8), dpi = 300)
+        ax.plot(np.arange(0,train_losses.size,1)/100, val_losses, label=fr'$MSE\; de\; Validação:\; ${val_losses[-1]:.4f} $(dB/Hz)^2$', color='C1')
+        ax.plot(np.arange(0,train_losses.size,1)/100, train_losses, label=fr'$MSE\; de\; Treinamento:\; ${train_losses[-1]:.4f} $(dB/Hz)^2$', color = "C2")
+        #ax.plot(np.arange(0,train_losses.size,1)/100, val_losses, label=fr'Validation Loss: {2.1854:.4f} $(dB/Hz)^2$', color='C1')
+        #ax.plot(np.arange(0,train_losses.size,1)/100, train_losses, label=fr'Training Loss: {1.9625:.4f} $(dB/Hz)^2$', color = "C2")
+        if train_losses.size > M and average_curves:
+            def moving_average(x, w):
+                return np.convolve(x, np.ones(w), 'valid')/w
+            ax.plot(np.arange(0,train_losses.size)/100,moving_average(train_losses, M), color='blue', label='$MSE\; de\; Validação\; (Média\; Móvel)$')
+            ax.plot(np.arange(0,train_losses.size)/100,moving_average(val_losses, M), color='red', label='$MSE\; de\; Treinamento\; (Média\; Móvel)$')
+
+        ax.autoscale(tight=True)
+
+        ax.set_title(title)
+        ax.set_xlabel(r'$Épocas\times 100$')
+        ax.set_ylabel(ylabel)
+        ax.legend()
+        ax.set_ylim(0, 10)
+        ax.set_xlim(0, len(train_losses)/100)
+
+        plt.subplots_adjust(left=0.15, right=0.95, top=0.9, bottom=0.1)
+        fig.savefig(figname, dpi=300)
+        plt.show()
+        plt.close()
+
+
 def get_num_params(model):
     '''
     Function to calculate the number of parameters of a neural network model from the torch model
@@ -161,6 +193,27 @@ def plot_comparison(target, output, freqs_GHz, loss, figname, title, ylim = (-35
         plt.show()
         plt.close()
 
+def plot_comparison_style(target, output, freqs_GHz, loss, figname, title, ylim = (-35,35), xlabel = r"$Frequência\; Básica\; (em\; unidades\; de\; f_m)$", ylabel = r"$PSD\; (dB/Hz)$", show_max_min = False):
+    with plt.style.context(['science', 'ieee', "grid", 'no-latex']):
+        fig, ax = plt.subplots()
+        ax.plot(freqs_GHz, target, "s", label=r'$Alvo$')
+        ax.plot(freqs_GHz, output, "o", label=r'$Predição$')
+        ax.legend()
+        ax.autoscale(tight=True)
+        ax.set_xlabel(xlabel)
+        ax.set_ylabel(ylabel)
+        ax.set_xticks(freqs_GHz)
+        ax.set_title(title)
+        ax.set_xlim(freqs_GHz[0]-0.5,freqs_GHz[-1]+0.5)
+        ax.set_ylim(ylim)
+
+        text = fr"MSE: {loss:.3f} $(dB/Hz)^2$"
+        if show_max_min:
+            text += "\n" + fr"Max - Min: {np.max(output) - np.min(output):.3f} $dB$"
+        ax.text(0, ylim[0]*0.88, text, ha = 'center', bbox=dict(facecolor='white', alpha=1, edgecolor='silver', boxstyle='round,pad=0.3'))
+        fig.savefig(figname, dpi=300)
+        plt.show()
+        plt.close()
 
 def run_one_epoch_forward(mode, loader, model, loss_fn, device="cpu", optimizer=None):
     if mode == 'train':

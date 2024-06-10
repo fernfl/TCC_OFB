@@ -42,9 +42,9 @@ def frequencyCombGenerator_MZM_MZM_PM(params, Rs, t, P, Vπ):
     u3 = V3 * np.cos(2 * π * Rs * t + Phase3)
 
     frequency_comb = P
+    frequency_comb =  pm(frequency_comb, u3, Vπ)
     frequency_comb = mzm(frequency_comb, u1, Vπ, Vb1)
     frequency_comb = mzm(frequency_comb, u2, Vπ, Vb2)
-    frequency_comb =  pm(frequency_comb, u3, Vπ)
 
     return frequency_comb
 
@@ -222,9 +222,9 @@ def frequencyCombPeaks(params, args):
     peaks: list
         Peaks of the power spectrum of the frequency comb signal
     '''
-
-    #frequency_comb = frequencyCombGenerator_MZM_MZM_PM(params, args.Rs, args.t, args.P, args.Vpi) # Generate the frequency comb signal
-    frequency_comb = frequencyCombGenerator_PM_PM_MZM(params, args.Rs, args.t, args.P, args.Vpi) # Generate the frequency comb signal
+    
+    frequency_comb = frequencyCombGenerator_MZM_MZM_PM(params, args.Rs, args.t, args.P, args.Vpi) # Generate the frequency comb signal
+    #frequency_comb = frequencyCombGenerator_PM_PM_MZM(params, args.Rs, args.t, args.P, args.Vpi) # Generate the frequency comb signal
     Pxx, _ = get_psd_ByFFT(frequency_comb, args.Fa, args.NFFT) # Get the power spectrum of the frequency comb signal
     log_Pxx = 10*np.log10(Pxx) # Convert the power spectrum to dB
     indx = get_indx_peaks(log_Pxx, args.NFFT/args.SpS, args.n_peaks) # Get the indexes of the peaks
@@ -248,7 +248,7 @@ def optimization_flatComb(initial_guess, args, bounds, n_max = 100, method = "SL
     n_max: int
         Max number of iterations
     method: string
-        Optimization method
+        Optimization method: Nelder-Mead, Powell, L-BFGS-B, TNC, COBYLA, SLSQP, trust-constr
 
     Returns:
     optimized_params: list
